@@ -111,15 +111,47 @@ class WallTraker:
         print("num_matches: ", num_matches)
         if num_matches <= MIN_NUM_MATCHES: return 0, 1, num_matches, True
         # Calculate the average x and y difference
-        robot_center_x, robot_center_y, robot_x_radius, robot_y_radius = self.robot_state.compute_confidence_ellipse(query_coordinate)
-        carrot_center_x, carrot_center_y, carrot_x_radius, carrot_y_radius = self.carrot_state.compute_confidence_ellipse(train_coordinate)
-        robot_ellipse_ratio = robot_x_radius / robot_y_radius
-        x_diff = robot_center_x - carrot_center_x
-        y_ratio = robot_y_radius / carrot_y_radius
-        # Calculate the moving average of the y ratio
-        processed_y_ratio = self._calculate_moving_average_y(y_ratio)
-        print("ellipse_ratio: ", robot_ellipse_ratio)
-        return x_diff, processed_y_ratio, num_matches, False
+        center_diff, height_diff, width_diff, angle_diff = self.compare_confidence_ellipses(query_coordinate, train_coordinate)
+        
+        return center_diff[0], center_diff[1], height_diff, angle_diff, num_matches, False
+
+
+    def compare_confidence_ellipses(self, points1, points2):
+        # Calculate the covariance matrices
+        cov_matrix1 = np.cov(points1, rowvar=False)
+        cov_matrix2 = np.cov(points2, rowvar=False)
+        
+        # Calculate the centers
+        center1 = np.mean(points1, axis=0)
+        center2 = np.mean(points2, axis=0)
+        
+        # Compute eigenvalues and eigenvectors
+        eigenvalues1, eigenvectors1 = np.linalg.eigh(cov_matrix1)
+        eigenvalues2, eigenvectors2 = np.linalg.eigh(cov_matrix2)
+        
+        # Calculate the lengths of the axes (sqrt of eigenvalues)
+        lengths1 = np.sqrt(eigenvalues1)
+        lengths2 = np.sqrt(eigenvalues2)
+        
+        # Compute the angles (orientation) of the eigenvectors
+        angles1 = np.arctan2(eigenvectors1[1, :], eigenvectors1[0, :])
+        angles2 = np.arctan2(eigenvectors2[1, :], eigenvectors2[0, :])
+        
+        # Calculate the differences
+        center_diff = np.abs(center1 - center2)
+        height_diff = np.abs(lengths1[1] - lengths2[1])
+        width_diff = np.abs(lengths1[0] - lengths2[0])
+        angle_diff = np.abs(angles1[1] - angles2[1])  # Using the angle of the "major" axis
+        
+        # # Output the differences
+        # print("Difference in x,y center: ", center_diff)
+        # print("Difference in height: ", height_diff)
+        # print("Difference in width: ", width_diff)
+        # print("Difference in angle (radians): ", angle_diff)
+        
+        return center_diff, height_diff, width_diff, angle_diff
+
+
     
     def next_carrot(self) -> int:
         '''

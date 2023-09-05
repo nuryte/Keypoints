@@ -15,8 +15,7 @@ import math
 import cv2
 
 ### Global Variables ###
-IP_ADDRESS = '192.168.0.204'     # IP address of the robot
-STREAMING_URL = "http://192.168.0.204:1234/stream.mjpg"  # Video streaming url
+
 
 TOTAL_INTERVALS = 200            # Total number of intervals in the demo video
 INTERVAL_LENGTH = 12             # Number of frames in a timeline interval
