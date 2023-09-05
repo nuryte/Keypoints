@@ -15,7 +15,7 @@ import math
 import cv2
 
 ### Constants ###   
-DEMO_VIDEO = "corner.mp4"                         # The path to the demo video
+DEMO_VIDEO = "Timeline\\circular.mp4"                         # The path to the demo video
 MIN_NUM_MATCHES = 5                              # The minimum number of matches to be considered a match
 
 class WallTraker:

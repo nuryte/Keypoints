@@ -13,7 +13,8 @@ import numpy as np
 import cv2
 
 ### Constants ###
-DESCRIPTOR_FILE_PATH = "side_demo_kpt_des"      # Path to the descriptor files
+DESCRIPTOR_FILE_PATH = "GroundMapping\\GroundMapping_Lab_Circular\\fly_demo_kpt_des"      # Path to the descriptor files
+DESCRIPTOR_FILE_NAME = "fly_demo_kpt_des"
 MAX_MATCH_DISTANCE = 50                         # The maximum distance between two matched keypoints
 
 
@@ -39,7 +40,7 @@ class State:
         return      {*}: None
         '''
         file_name = (
-            DESCRIPTOR_FILE_PATH + "/" + DESCRIPTOR_FILE_PATH + str(interval) + ".yml"
+            DESCRIPTOR_FILE_PATH + "/" + DESCRIPTOR_FILE_NAME + str(interval) + ".yml"
         )
         file_storage = cv2.FileStorage(file_name, cv2.FILE_STORAGE_READ)
         # Load the keypoints and descriptors from the file
