@@ -47,7 +47,7 @@ feedbackPD = { "roll" : 0,
   "Cx" : 1,
   "Cy" : 1,
   "Cz" : 1,
-  "Cabsz" : 0,
+  "Cabsz" : 1,
 
   "kproll" : 0,
   "kdroll" : 0 ,
@@ -60,8 +60,8 @@ feedbackPD = { "roll" : 0,
   "kdx" : 0,
   "kpy" : 0,
   "kdy" : 0,
-  "kpz" : .1,#.5
-  "kdz" : .2,#-3
+  "kpz" : .05,#.5
+  "kdz" : 0,#-3
   "kiz" : 0,
 
   "integral_dt" : 0,#.0001,
@@ -262,6 +262,7 @@ a_con = 0
 robo_time = 0
 def runRobot():
     global x_con, y_con, h_con, a_con
+    print("robo thread")
     sock = espnow_init()
 
 
@@ -295,7 +296,7 @@ def runRobot():
 
     #tow_z_pid = PID(3, 0, 1, setpoint = 1, sample_time=0.01)
     lead_z_pid = PID(.6, 0.01, .4, setpoint = 0)
-    yaw_pid = PID(0.4, 0.001, 0.2, setpoint = 0.)
+    yaw_pid = PID(0.2, 0, 0.1, setpoint = 0.)
     yaw_pid.error_map = pi_clip
     
     # xy_d = np.array([positions[lead_robot_id][0], 
@@ -304,8 +305,8 @@ def runRobot():
     xy_center = np.array([0,0])
 
     xyp = .2#.6
-    xyd = .2#.4
-    xyi = 0.0005
+    xyd = .1#.4
+    xyi = 0
     ex_norm_pid = PID(xyp, xyi, xyd, setpoint = 0.)
     ey_norm_pid = PID(xyp, xyi, xyd, setpoint = 0.)
 
@@ -347,10 +348,10 @@ def runRobot():
             else:
                 fx = 0
 
-            # if abs(joystick.get_axis(2)) > 0.1:
-            #     tauz = -.2 * joystick.get_axis(2)  # right handler: left-right
-            # else:
-            #     tauz = 0
+            if abs(joystick.get_axis(0)) > 0.1:
+                tauz = .5 * joystick.get_axis(0)  # right handler: left-right
+            else:
+                tauz = 0
             if abs(joystick.get_axis(2)) > 0.1:
                 fy = -1 * joystick.get_axis(2)  # right handler: left-right
             else:
@@ -372,24 +373,24 @@ def runRobot():
             
             
             if b_state == 0:
-                absz = .4
+                absz = 0
                 x_state = 0
 
             time_start = time.time()
 
-            lead_fz = 4
+            lead_fz = 1
             with lock:
-                if robo_time - time.time() < .25:
-                    
+                
+                if  time.time() - robo_time < .25:
                     #yaw_pid.setpoint = 0
 
                     
-                    lead_tauz = yaw_pid(a_con)
-                    lead_fz += lead_z_pid(h_con)
+                    lead_tauz = 0#yaw_pid(a_con)
+                    #lead_fz += lead_z_pid(h_con)
                     
                         
-                    lead_fx = - ex_norm_pid(x_con)   # forces of x in the body frame 
-                    lead_fy = - ey_norm_pid(y_con)   # forces of x in the body frame 
+                    lead_fx = fx - ex_norm_pid(x_con)   # forces of x in the body frame 
+                    lead_fy = fy - ey_norm_pid(y_con)   # forces of x in the body frame 
                     force_vec = np.array([lead_fx, lead_fy])
                     
                     if np.linalg.norm(force_vec) > lead_fz*.7:
@@ -398,18 +399,18 @@ def runRobot():
                     fx = force_vec[0]
                     fy = force_vec[1]    
                     tauz = lead_tauz
-                    absz = lead_fz
+                    fz = lead_fz + absz
                 else:
                     fx = 0
                     fy = 0    
                     tauz = 0
-                    absz = lead_fz
-
-
-
+                    fz = lead_fz
+            zOffset = .4#.6
+            
+            #print(fx, fy, fz, tauz)
 
             esp_now_input = Control_Input(
-                21,int(b_state), fx, fy, absz, taux, tauy, tauz, fz, 0, 0, 0, 0
+                21,int(b_state), fx, fy, fz, taux, tauy, tauz- .035, zOffset, 0, 0, 0, 0
             )
             esp_now_send(sock, esp_now_input)
                 
@@ -426,9 +427,9 @@ def runRobot():
 ### Global Variables ###
 
 
-TOTAL_INTERVALS = 200            # Total number of intervals in the demo video
-INTERVAL_LENGTH = 12             # Number of frames in a timeline interval
-SKIP_INTERVAL = 3                # Interval between donkey and carrot
+TOTAL_INTERVALS = 100            # Total number of intervals in the demo video
+INTERVAL_LENGTH = 5             # Number of frames in a timeline interval
+SKIP_INTERVAL = 2                # Interval between donkey and carrot
 
 V_GAIN = 3                       # Gain of velocity
 W_GAIN = 400                     # Gain of angular velocity
@@ -555,12 +556,12 @@ opti_arr = []
 screen_w = 400
 screen_h = 300
 def ending():
-    cv2.destroyAllWindows()
     
     
     print("RELEASE")
     out1.release()
     out2.release()
+    #cv2.destroyAllWindows()
     folder_path = 'GroundMapping\\GroundMapping_Lab_Circular\\numpy'
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -577,11 +578,14 @@ def ending():
 def jpg_frame_buffer_cb(data):
     global out1, out2, position, lost_count, wall_tracker, first
     global x_con, y_con, h_con, a_con, robo_time
+    #print("Data In")
     sys.stdout.flush()
 
     try:
         dat_img = pygame.image.load(io.BytesIO(data), "jpg")
         dat_img = pygame.transform.scale(dat_img, (screen_w, screen_h))
+        screen.blit(dat_img, (0, 0))
+        pygame.display.update()
         # Convert Pygame surface to NumPy array
         frame = pygame.surfarray.array3d(dat_img)# Convert frame from RGB to BGR format (OpenCV uses BGR)
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -595,7 +599,6 @@ def jpg_frame_buffer_cb(data):
         if first:
             first = False
             
-            wall_tracker = WallTraker(robot_frame, TOTAL_INTERVALS, INTERVAL_LENGTH, SKIP_INTERVAL)
             # Initialize the counter
             position = -1      # The current interval
             lost_count = 0     # The number of times the robot lost the wall
@@ -612,16 +615,16 @@ def jpg_frame_buffer_cb(data):
                 y_con = y_diff
                 h_con = height_diff
                 a_con = angle_diff
-            
+            if np.sqrt(x_diff**2 + y_diff**2) < 10 and not lost: # If the robot is close enough to the carrot
+                position = wall_tracker.next_carrot() # Go to the next carrot
+                lost_count = 0 # Reset the lost count
 
-            if cv2.waitKey(1) == 27 or position == TOTAL_INTERVALS:
+            if position == TOTAL_INTERVALS:
                 if position == TOTAL_INTERVALS: print("Finish!")
                 # De-allocate any associated memory usage
                 ending()
         
 
-        screen.blit(dat_img, (0, 0))
-        pygame.display.update()
         clock.tick()
     except pygame.error as e:
         print(f"Pygame error: {e}")
@@ -633,12 +636,14 @@ def jpg_frame_buffer_cb(data):
             ending()
             
 def stream_loop():
-    global out1, out2, first
+    global out1, out2, first, wall_tracker
+    print("stream thread")
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     fps = 20
     out1 = cv2.VideoWriter("robot.mp4", fourcc, fps, (screen_w, screen_h))
     out2 = cv2.VideoWriter("carrot.mp4", fourcc, fps, (screen_w, screen_h))
     pygame.init()
+    wall_tracker = WallTraker(None, TOTAL_INTERVALS, INTERVAL_LENGTH, SKIP_INTERVAL)
 
     global screen
     try:
@@ -646,7 +651,7 @@ def stream_loop():
     except TypeError:
         screen = pygame.display.set_mode((screen_w, screen_h))
     pygame.display.set_caption("Frame Buffer")
-    wall_tracker = None
+    
     first = True
     try:
         while(True):
@@ -675,15 +680,15 @@ def stream_loop():
     except KeyboardInterrupt:
         sys.exit()
 
-#robo_thread = threading.Thread(target = runRobot)
+robo_thread = threading.Thread(target = runRobot)
 stream_thread = threading.Thread(target = stream_loop)
 print("begin threads!")
-#robo_thread.start()
+robo_thread.start()
 stream_thread.start()
 print("threads!!")
 
-#robo_thread.join()
+robo_thread.join()
 stream_thread.join()
 print("Ended threads!")
-print(threading.enumerate())
+# print(threading.enumerate())
 sys.exit()

@@ -26,10 +26,14 @@ class WallTraker:
         self.accumulated_y_ratio = 1.0            # Accumulated y ratio
         self.total_states: List[State] = []       # A list of all states in the demo video
         self._load_all_states()                   # Load all frames from the demo video into a list of states
-        self.robot_state = State(initial_frame)   # Create a state object for the robot
         self.donkey_index = -1                    # The index of the donkey state
         self.carrot_index = -1                    # The index of the carrot state
-        self._find_donkey_carrot_state()          # Find the donkey and carrot state
+        if initial_frame is not None:
+            self.robot_state = State(initial_frame)   # Create a state object for the robot
+            self._find_donkey_carrot_state()          # Find the donkey and carrot state
+        else:
+            print("None Start")
+            self.robot_state = None
         
 
     def __str__(self) -> str:
@@ -100,7 +104,7 @@ class WallTraker:
             self.accumulated_y_ratio = self.accumulated_y_ratio * (1-dynamic_gain) + new_y_ratio * dynamic_gain
         return self.accumulated_y_ratio
     
-    def chase_carrot(self)-> Tuple[int, float, int, bool]:
+    def chase_carrot(self):#-> Tuple[int, float, int, bool]:
         '''
         description: Let robot chase the carrot
         param       {*} self: -
@@ -109,12 +113,13 @@ class WallTraker:
         query_coordinate, train_coordinate, num_matches = self.robot_state.get_match_coordinate(self.carrot_state)
         # If no match is found, return 0 velocity
         print("num_matches: ", num_matches)
-        if num_matches <= MIN_NUM_MATCHES: return 0, 1, num_matches, True
+        if num_matches <= MIN_NUM_MATCHES: return 0, 0,0,0, num_matches, True
         # Calculate the average x and y difference
         center_diff, height_diff, width_diff, angle_diff = self.compare_confidence_ellipses(query_coordinate, train_coordinate)
         
         return center_diff[0], center_diff[1], height_diff, angle_diff, num_matches, False
-
+    
+    
 
     def compare_confidence_ellipses(self, points1, points2):
         # Calculate the covariance matrices
@@ -172,7 +177,11 @@ class WallTraker:
         param       {*} self: -
         return      {*}: None
         '''
-        self.robot_state = State(new_frame)
+        if self.robot_state is None:
+            self.robot_state = State(new_frame)
+            self._find_donkey_carrot_state()          # Find the donkey and carrot state
+        else:
+            self.robot_state = State(new_frame)
 
     def show_all_frames(self) -> Tuple[np.array, np.array]:
         '''
@@ -180,23 +189,23 @@ class WallTraker:
         param       {*} self: -
         return      {*}: None
         '''
-        # Create windows
-        cv2.namedWindow("Robot", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("Donkey", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("Carrot", cv2.WINDOW_NORMAL)
+        # # Create windows
+        # cv2.namedWindow("Robot", cv2.WINDOW_NORMAL)
+        # cv2.namedWindow("Donkey", cv2.WINDOW_NORMAL)
+        # cv2.namedWindow("Carrot", cv2.WINDOW_NORMAL)
 
-        # Move the windows to desired positions on the screen
-        cv2.moveWindow("Robot", 0, 200)       # Position the "Robot" window at (100, 100)
-        cv2.moveWindow("Donkey", 400, 200)      # Position the "Donkey" window at (600, 100)
-        cv2.moveWindow("Carrot", 800, 200)     # Position the "Carrot" window at (1100, 100)
+        # # Move the windows to desired positions on the screen
+        # cv2.moveWindow("Robot", 0, 200)       # Position the "Robot" window at (100, 100)
+        # cv2.moveWindow("Donkey", 400, 200)      # Position the "Donkey" window at (600, 100)
+        # cv2.moveWindow("Carrot", 800, 200)     # Position the "Carrot" window at (1100, 100)
 
         robot = self.robot_state.temp_frame
         carrot = self.carrot_state.temp_frame
 
         # Display the frames in their respective windows
-        self.robot_state.show_frame("Robot")
-        self.donkey_state.show_frame("Donkey")
-        self.carrot_state.show_frame("Carrot")
+        # self.robot_state.show_frame("Robot")
+        # self.donkey_state.show_frame("Donkey")
+        # self.carrot_state.show_frame("Carrot")
         # Debug
         # Show the carrot frame
         # cv2.imshow("Carrot_Original", self.carrot_state.frame)
