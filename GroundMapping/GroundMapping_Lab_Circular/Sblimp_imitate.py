@@ -31,11 +31,12 @@ def find_point_on_circle(nx, ny, t, s):#n radius, t time, s frequency
 
     return x, y
 
-PORT = 'COM5'
+PORT = 'COM20'
+
 
 feedbackPD = { "roll" : 0,
   "pitch" : 0,
-  "yaw" : 0,
+  "yaw" : 1,
   "x" : 0,
   "y" : 0,
   "z" : 1,
@@ -53,15 +54,15 @@ feedbackPD = { "roll" : 0,
   "kdroll" : 0 ,
   "kppitch" : 0,
   "kdpitch" : 0,
-  "kpyaw" : 3.0,
-  "kdyaw" : -120,
+  "kpyaw" : 0,
+  "kdyaw" : .75,
 
   "kpx" : 0,
   "kdx" : 0,
   "kpy" : 0,
   "kdy" : 0,
-  "kpz" : .05,#.5
-  "kdz" : 0,#-3
+  "kpz" : .07,#.5
+  "kdz" : 3,#-3
   "kiz" : 0,
 
   "integral_dt" : 0,#.0001,
@@ -76,8 +77,8 @@ weights = { "eulerGamma" : 0,
   "rollRateGamma" : 0.7,
   "yawRateGamma" : 0.975,
   "pitchRateGamma" : 0.7,
-  "zGamma" : 0.5,
-  "vzGamma" : 0.5
+  "zGamma" : 0.9,
+  "vzGamma" : 0.9
 }
 
 class Control_Input:
@@ -378,7 +379,8 @@ def runRobot():
 
             time_start = time.time()
 
-            lead_fz = 1
+            lead_fz = 2
+            zOffset = .75
             with lock:
                 
                 if  time.time() - robo_time < .25:
@@ -393,24 +395,23 @@ def runRobot():
                     lead_fy = fy - ey_norm_pid(y_con)   # forces of x in the body frame 
                     force_vec = np.array([lead_fx, lead_fy])
                     
-                    if np.linalg.norm(force_vec) > lead_fz*.7:
+                    if np.linalg.norm(force_vec) > (lead_fz  )*.7:
                         force_vec = force_vec/np.linalg.norm(force_vec) * lead_fz*.7
                         
                     fx = force_vec[0]
                     fy = force_vec[1]    
                     tauz = lead_tauz
-                    fz = lead_fz + absz
+                    fz = lead_fz 
                 else:
-                    fx = 0
-                    fy = 0    
-                    tauz = 0
-                    fz = lead_fz
-            zOffset = .4#.6
+                    fx = fx
+                    fy = fy    
+                    tauz = tauz
+                    fz = lead_fz 
             
             #print(fx, fy, fz, tauz)
 
             esp_now_input = Control_Input(
-                21,int(b_state), fx, fy, fz, taux, tauy, tauz- .035, zOffset, 0, 0, 0, 0
+                21,int(b_state), fx, fy, fz+ absz, taux, tauy, tauz, zOffset, 0, 0, 0, 0
             )
             esp_now_send(sock, esp_now_input)
                 
@@ -681,14 +682,14 @@ def stream_loop():
         sys.exit()
 
 robo_thread = threading.Thread(target = runRobot)
-stream_thread = threading.Thread(target = stream_loop)
+#stream_thread = threading.Thread(target = stream_loop)
 print("begin threads!")
 robo_thread.start()
-stream_thread.start()
+#stream_thread.start()
 print("threads!!")
 
 robo_thread.join()
-stream_thread.join()
+#stream_thread.join()
 print("Ended threads!")
 # print(threading.enumerate())
 sys.exit()
