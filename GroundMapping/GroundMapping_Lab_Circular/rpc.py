@@ -115,19 +115,19 @@ class rpc:
 
     def stream_reader(self, call_back, queue_depth=1, read_timeout_ms=5000): # public
         try: self._stream_put_bytes(self._set_packet(0xEDF6, struct.pack("<I", queue_depth)), 1000)
-        except OSError: return
+        except OSError: return 0
         tx_lfsr = 255
         while True:
             packet = self._stream_get_bytes(bytearray(8), 1000)
-            if packet is None: return
+            if packet is None: return 1
             magic = packet[0] | (packet[1] << 8)
             crc = packet[-2] | (packet[-1] << 8)
             if magic != 0x542E and crc != self.__crc_16(packet, len(packet) - 2): return
             data = self._stream_get_bytes(bytearray(struct.unpack("<I", packet[2:-2])[0]), read_timeout_ms)
-            if data is None: return
+            if data is None: return 2
             call_back(data)
             try: self._stream_put_bytes(struct.pack("<B", tx_lfsr), 1000)
-            except OSError: return
+            except OSError: return 0
             tx_lfsr = (tx_lfsr >> 1) ^ (0xB8 if tx_lfsr & 1 else 0x00)
 
     def stream_writer(self, call_back, write_timeout_ms=5000): # public

@@ -13,9 +13,12 @@ import numpy as np
 import cv2
 
 ### Constants ###
-DESCRIPTOR_FILE_PATH = "GroundMapping\\GroundMapping_Lab_Circular\\fly_demo_kpt_des"      # Path to the descriptor files
-DESCRIPTOR_FILE_NAME = "fly_demo_kpt_des"
-MAX_MATCH_DISTANCE = 50                         # The maximum distance between two matched keypoints
+# DESCRIPTOR_FILE_PATH = "GroundMapping\\GroundMapping_Lab_Circular\\fly_demo_kpt_des"      # Path to the descriptor files
+# DESCRIPTOR_FILE_NAME = "fly_demo_kpt_des"
+
+DESCRIPTOR_FILE_PATH = "Timeline/fly_demo2_kpt_des"      # Path to the descriptor files
+DESCRIPTOR_FILE_NAME = "fly_demo2_kpt_des"
+MAX_MATCH_DISTANCE = 35                         # The maximum distance between two matched keypoints
 
 
 class State:
@@ -138,6 +141,7 @@ class State:
         if len(query_coordinate) != len(train_coordinate):
             raise ValueError("The number of query coordinates must match the number of train coordinates.")
 
+        self.temp_frame = self.frame.copy() # A copy of the frame to be used for drawing
         # Draw keypoints and arrows
         for q_point, t_point in zip(query_coordinate, train_coordinate):
             q_point = (int(q_point[0]), int(q_point[1]))

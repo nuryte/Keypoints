@@ -14,9 +14,13 @@ import math, time
 import cv2
 import threading
 from simple_pid import PID
+import queue
 ### SBLIMP
 lock = threading.Lock()
 
+data_queue = queue.Queue()
+folder = "GroundData"
+instance = 3
 
 def find_point_on_circle(nx, ny, t, s):#n radius, t time, s frequency 
     # Calculate frequency
@@ -32,6 +36,54 @@ def find_point_on_circle(nx, ny, t, s):#n radius, t time, s frequency
     return x, y
 
 PORT = 'COM20'
+
+
+feedbackPD2 = { "roll" : 0,
+  "pitch" : 0,
+  "yaw" : 1,
+  "x" : 0,
+  "y" : 0,
+  "z" : 0,
+  "rotation" : 0,
+
+  "Croll" : 0,
+  "Cpitch" : 0, 
+  "Cyaw" : 1,
+  "Cx" : 1,
+  "Cy" : 1,
+  "Cz" : 1,
+  "Cabsz" : 1,
+
+  "kproll" : 0,
+  "kdroll" : 0 ,
+  "kppitch" : 0,
+  "kdpitch" : 0,
+  "kpyaw" : 0,
+  "kdyaw" : 0,
+
+  "kpx" : 0,
+  "kdx" : 0,
+  "kpy" : 0,
+  "kdy" : 0,
+  "kpz" : .15,#.5
+  "kdz" : 3,#-3
+  "kiz" : 0,
+
+  "integral_dt" : 0,#.0001,
+  "z_int_low" : 0,
+  "z_int_high" : 200,
+
+  "lx" : .15,
+  "pitchSign" : 1,
+  "pitchOffset" : -3.2816
+}
+weights2 = { "eulerGamma" : 0,
+  "rollRateGamma" : 0.7,
+  "yawRateGamma" : 0.975,
+  "pitchRateGamma" : 0.7,
+  "zGamma" : 0.9,
+  "vzGamma" : 0.9
+}
 
 
 feedbackPD = { "roll" : 0,
@@ -54,15 +106,15 @@ feedbackPD = { "roll" : 0,
   "kdroll" : 0 ,
   "kppitch" : 0,
   "kdpitch" : 0,
-  "kpyaw" : 0,
-  "kdyaw" : .75,
+  "kpyaw" : -.5,
+  "kdyaw" : -10,
 
   "kpx" : 0,
   "kdx" : 0,
   "kpy" : 0,
   "kdy" : 0,
-  "kpz" : .07,#.5
-  "kdz" : 3,#-3
+  "kpz" : 2,#.5,#.5
+  "kdz" : .5,#-3
   "kiz" : 0,
 
   "integral_dt" : 0,#.0001,
@@ -77,9 +129,10 @@ weights = { "eulerGamma" : 0,
   "rollRateGamma" : 0.7,
   "yawRateGamma" : 0.975,
   "pitchRateGamma" : 0.7,
-  "zGamma" : 0.9,
-  "vzGamma" : 0.9
+  "zGamma" : 0.5,
+  "vzGamma" : 0.7
 }
+
 
 class Control_Input:
     def __init__(self, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13):
@@ -261,168 +314,7 @@ y_con = 0
 h_con = 0
 a_con = 0
 robo_time = 0
-def runRobot():
-    global x_con, y_con, h_con, a_con
-    print("robo thread")
-    sock = espnow_init()
 
-
-    sendAllFlags(sock)
-    
-    time.sleep(0.05)  # 0.005
-
-    joystick = init()
-    
-    absz = 0
-    b_old = 0
-    b_state = 0
-    x_old = 0
-    x_state = 1
-    
-
-    tauz = 0
-    fx = 0
-    
-
-    time_start = time.time()
-    time_all=  time.time()
-
-    #####################################
-    
-     ###############################################
-
-
-
-
-
-    #tow_z_pid = PID(3, 0, 1, setpoint = 1, sample_time=0.01)
-    lead_z_pid = PID(.6, 0.01, .4, setpoint = 0)
-    yaw_pid = PID(0.2, 0, 0.1, setpoint = 0.)
-    yaw_pid.error_map = pi_clip
-    
-    # xy_d = np.array([positions[lead_robot_id][0], 
-    #                 positions[lead_robot_id][1]])1.8234654664993286, -0.22969473898410797, 0.45290014147758484
-    xy_d = np.array([1.823,0.4529])
-    xy_center = np.array([0,0])
-
-    xyp = .2#.6
-    xyd = .1#.4
-    xyi = 0
-    ex_norm_pid = PID(xyp, xyi, xyd, setpoint = 0.)
-    ey_norm_pid = PID(xyp, xyi, xyd, setpoint = 0.)
-
-
-    
-    
-    ################################################
-    
-    try:
-        while True:
-            # if pygame.joystick.get_count() == 0:
-            #     while pygame.joystick.get_count() == 0:
-            #         print("joy_lost")
-            #         time.sleep(.02)
-            #     joystick = init()
-                
-            # Get the joystick readings
-            pygame.event.pump()
-            b = joystick.get_button(1)
-            x = joystick.get_button(2)
-            y = joystick.get_button(3)
-            if y:
-                break
-            left = joystick.get_hat(0)[0] == -1
-            right = joystick.get_hat(0)[0] == 1
-            fy = 0
-            if b == 1 and b_old == 0:
-                b_state = not b_state
-                
-                
-            b_old = b
-
-            if x == 1 and x_old == 0:
-                x_state = not x_state
-            x_old = x
-
-            if abs(joystick.get_axis(3)) > 0.1:
-                fx = -1 * joystick.get_axis(3)  # left handler: up-down, inverted
-            else:
-                fx = 0
-
-            if abs(joystick.get_axis(0)) > 0.1:
-                tauz = .5 * joystick.get_axis(0)  # right handler: left-right
-            else:
-                tauz = 0
-            if abs(joystick.get_axis(2)) > 0.1:
-                fy = -1 * joystick.get_axis(2)  # right handler: left-right
-            else:
-                fy = 0
-
-            fz = 0  # -2*joystick.get_axis(1)  # right handler: up-down, inverted
-
-
-
-            l_old = left
-            r_old = right
-            
-            tauy = 0
-            taux = 0
-            # absz = .5
-
-            if abs(joystick.get_axis(1)) > 0.15:
-                absz += -(time.time() - time_start) * joystick.get_axis(1)*.3
-            
-            
-            if b_state == 0:
-                absz = 0
-                x_state = 0
-
-            time_start = time.time()
-
-            lead_fz = 2
-            zOffset = .75
-            with lock:
-                
-                if  time.time() - robo_time < .25:
-                    #yaw_pid.setpoint = 0
-
-                    
-                    lead_tauz = 0#yaw_pid(a_con)
-                    #lead_fz += lead_z_pid(h_con)
-                    
-                        
-                    lead_fx = fx - ex_norm_pid(x_con)   # forces of x in the body frame 
-                    lead_fy = fy - ey_norm_pid(y_con)   # forces of x in the body frame 
-                    force_vec = np.array([lead_fx, lead_fy])
-                    
-                    if np.linalg.norm(force_vec) > (lead_fz  )*.7:
-                        force_vec = force_vec/np.linalg.norm(force_vec) * lead_fz*.7
-                        
-                    fx = force_vec[0]
-                    fy = force_vec[1]    
-                    tauz = lead_tauz
-                    fz = lead_fz 
-                else:
-                    fx = fx
-                    fy = fy    
-                    tauz = tauz
-                    fz = lead_fz 
-            
-            #print(fx, fy, fz, tauz)
-
-            esp_now_input = Control_Input(
-                21,int(b_state), fx, fy, fz+ absz, taux, tauy, tauz, zOffset, 0, 0, 0, 0
-            )
-            esp_now_send(sock, esp_now_input)
-                
-
-            # state = not state
-            time.sleep(0.01)  # 0.005
-            # while(time.time() - time_start < 0.01):
-            # time.sleep(0.001) #0.005
-    except KeyboardInterrupt:
-        print("The end")
-        
 
 
 ### Global Variables ###
@@ -436,7 +328,10 @@ V_GAIN = 3                       # Gain of velocity
 W_GAIN = 400                     # Gain of angular velocity
 
 CONNECT_TO_ROBOT = True          # Whether to connect to the robot
-V_VALUES = []                    # A list of linear velocities
+VX_VALUES = []                    # A list of linear velocities
+VY_VALUES = []                    # A list of linear velocities
+PX_VALUES = []                    # A list of linear velocities
+PY_VALUES = []                    # A list of linear velocities
 ω_VALUES = []                    # A list of angular velocities
 NUM_MATCH = []                   # A list of number of matches
 
@@ -509,6 +404,248 @@ is_running = streaming_client.run()
 try: input = raw_input
 except NameError: pass
 
+def runRobot():
+    
+    print("robo thread")
+    sock = espnow_init()
+
+
+    sendAllFlags(sock)
+    
+    time.sleep(0.05)  # 0.005
+
+    joystick = init()
+    
+    absz = 0
+    b_old = 0
+    b_state = 0
+    x_old = 0
+    x_state = 1
+    
+
+    tauz = 0
+    fx = 0
+    
+
+    time_start = time.time()
+    time_all=  time.time()
+
+    #####################################
+    
+     ###############################################
+
+
+
+
+
+    #tow_z_pid = PID(3, 0, 1, setpoint = 1, sample_time=0.01)
+    
+    
+    # xy_d = np.array([positions[lead_robot_id][0], 
+    #                 positions[lead_robot_id][1]])1.8234654664993286, -0.22969473898410797, 0.45290014147758484
+    xy_d = np.array([1.823,0.4529])
+    xy_center = np.array([0,0])
+
+    xyp = .03#.6
+    xyd = .03#.4
+    xyi = 0
+    ex_norm_pid = PID(xyp, xyi, xyd, setpoint = 0.)
+    ey_norm_pid = PID(xyp, xyi, xyd, setpoint = 0.)
+    lead_z_pid = PID(.6, 0.02, .4, setpoint = 1.8)
+    yaw_pid = PID(0.2, 0.02, 0.3, setpoint = 0)
+    yaw_pid.error_map = pi_clip
+
+
+    realx = 0
+    realy = 0
+    xygamma = .5
+    robo_time = 0
+    x_con = 0
+    y_con = 0
+    h_con = 0
+    a_con = 0
+    ################################################
+    
+    try:
+        while True:
+            # if pygame.joystick.get_count() == 0:
+            #     while pygame.joystick.get_count() == 0:
+            #         print("joy_lost")
+            #         time.sleep(.02)
+            #     joystick = init()
+                
+            # Get the joystick readings
+            pygame.event.pump()
+            b = joystick.get_button(1)
+            x = joystick.get_button(2)
+            y = joystick.get_button(3)
+            if y:
+                break
+            left = joystick.get_hat(0)[0] == -1
+            right = joystick.get_hat(0)[0] == 1
+            fy = 0
+            if b == 1 and b_old == 0:
+                b_state = not b_state
+                
+                
+                
+            b_old = b
+
+            if x == 1 and x_old == 0:
+                x_state = not x_state
+            x_old = x
+
+            if abs(joystick.get_axis(3)) > 0.1:
+                fx = -1 * joystick.get_axis(3)  # left handler: up-down, inverted
+            else:
+                fx = 0
+
+            if abs(joystick.get_axis(0)) > 0.1:
+                tauz = .5 * joystick.get_axis(0)  # right handler: left-right
+            else:
+                tauz = 0
+            if abs(joystick.get_axis(2)) > 0.1:
+                fy = -1 * joystick.get_axis(2)  # right handler: left-right
+            else:
+                fy = 0
+
+            fz = 0  # -2*joystick.get_axis(1)  # right handler: up-down, inverted
+
+
+
+            l_old = left
+            r_old = right
+            
+            tauy = 0
+            taux = 0
+            # absz = .5
+
+            if abs(joystick.get_axis(1)) > 0.15:
+                absz += -(time.time() - time_start) * joystick.get_axis(1)*.3
+            
+            
+            if b_state == 0:
+                absz = 0
+                x_state = 0
+
+            time_start = time.time()
+            absz = 0
+            lead_fz = 2
+            zOffset = .4#.6
+            #print(rotations[robot_id], positions[robot_id])
+            acquired = lock.acquire(blocking=False)
+            if acquired:
+                if not data_queue.empty():
+                    #print("Reading data...")
+                    data = data_queue.get()
+                    robo_time = data[0]
+                    x_con = data[1]
+                    y_con = data[2]
+                    h_con = data[3]
+                    a_con = data[4]
+                lock.release()
+
+            if b_state:
+                if  time.time() - robo_time < .25:
+                    yaw_pid.setpoint = 0
+                    
+                    lead_tauz = 1.5#yaw_pid(rotations[robot_id][2]*np.pi/180)#yaw_pid(a_con)#
+                    lead_fz = 1.27#lead_z_pid(positions[robot_id][2])#lead_z_pid(h_con)#
+                    #print(round(a_con,2), round(-rotations[robot_id][2]*np.pi/180, 2), round(h_con,2))
+                        
+                    lead_fx = fx - ex_norm_pid(x_con)   # forces of x in the body frame 
+                    lead_fy = fy - ey_norm_pid(y_con)   # forces of x in the body frame 
+                    force_vec = np.array([lead_fx, lead_fy])
+                    
+                    if np.linalg.norm(force_vec) > (lead_fz  )*.25:
+                        force_vec = force_vec/np.linalg.norm(force_vec) * lead_fz*.25
+                        
+                    realx = realx * xygamma -force_vec[1] * (1-xygamma)
+                    realy = realy * xygamma -force_vec[0] * (1-xygamma)
+                    
+                    fx = realx
+                    fy = realy   
+                    tauz = lead_tauz 
+                    fz = lead_fz 
+                    PX_VALUES.append(positions[robot_id][0])
+                    PY_VALUES.append(positions[robot_id][1])
+                    VX_VALUES.append(fx)
+                    VY_VALUES.append(fy)
+                else:
+                    lead_tauz = 1.5#yaw_pid(rotations[robot_id][2]*np.pi/180)#yaw_pid(a_con)
+                    lead_fz = 1.25#lead_z_pid(positions[robot_id][2])
+                    fx = fx
+                    fy = fy    
+                    tauz = lead_tauz
+                    fz = lead_fz 
+                    # PX_VALUES.append(positions[robot_id][0])
+                    # PY_VALUES.append(positions[robot_id][1])
+                    # VX_VALUES.append(fx)
+                    # VY_VALUES.append(fy)
+            
+            # print(fx, fy, fz, tauz)
+
+            esp_now_input = Control_Input(
+                21,int(b_state), fx, fy, fz+ absz, taux, tauy, tauz, zOffset, 0, 0, 0, 0
+            )
+            if b_state:
+                esp_now_send(sock, esp_now_input)
+                
+
+            # state = not state
+            time.sleep(0.05)  # 0.005
+            # while(time.time() - time_start < 0.01):
+            # time.sleep(0.001) #0.005
+    except KeyboardInterrupt:
+        print("The end")
+
+    # save positional data
+    xy_array = np.column_stack((PX_VALUES, PY_VALUES))
+    np.save(folder + '/position' + str(instance) + '.npy', xy_array)
+    
+    
+    # Create a figure and a 1x2 grid of subplots
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+
+    # Plot positions as a trajectory in 2D space
+    optiOrigin = np.load("Timeline\\opti_arrayCircle.npy")
+    print(optiOrigin.shape)
+    optiXY = optiOrigin[:, 0, :2][0:500]
+    axs[0].plot(-1*np.array(optiXY[:, 1]),np.array(optiXY[:, 0]), marker='x', linestyle='-')
+    axs[0].plot(-1*np.array(PY_VALUES),np.array(PX_VALUES), marker='o', linestyle='-')
+    axs[0].set_title('Positional Trajectory')
+    axs[0].set_xlabel('X Position')
+    axs[0].set_ylabel('Y Position')
+    
+
+    
+
+    # Add annotations to indicate the time step
+    # for i, (x, y) in enumerate(zip(PX_VALUES, PY_VALUES)):
+    #     axs[0].annotate(f'T={i}', (x, y), textcoords="offset points", xytext=(0, 10), ha='center')
+
+    # Plot velocities
+    
+    min_dists = np.empty(xy_array.shape[0])
+    for i, point2 in enumerate(xy_array):
+        # Compute the Euclidean distances to all points in array1
+        distances = np.linalg.norm(optiXY - point2, axis=1)
+        
+        # Find the minimum distance for the current point in array2
+        min_dists[i] = np.min(distances)
+    axs[1].plot(min_dists, label='Error', marker='o', linestyle='-')
+    #axs[1].plot(VY_VALUES, label='Y Velocity', marker='x', linestyle='-')
+    axs[1].set_title('Error In Distance')
+    axs[1].set_xlabel('Time')
+    axs[1].set_ylabel('Error')
+    axs[1].legend()
+
+    # Show the plots
+    plt.tight_layout()
+    plt.savefig('p_and_e_plot.png')
+        
+
+
 # The RPC library above is installed on your OpenMV Cam and provides mutliple classes for
 # allowing your OpenMV Cam to control over USB or WIFI.
 
@@ -535,7 +672,7 @@ except NameError: pass
 # * my_ip - IP address to bind to ("" to bind to all interfaces...)
 # * port - Port to route traffic to.
 #
-interface = rpc.rpc_network_master(slave_ip = "192.168.0.47", my_ip = "",port=7610)
+interface = rpc.rpc_network_master(slave_ip = "192.168.0.42", my_ip = "",port=6000)
 
 
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # or use 'XVID'
@@ -578,7 +715,7 @@ def ending():
 # This will be called with the bytes() object generated by the slave device.
 def jpg_frame_buffer_cb(data):
     global out1, out2, position, lost_count, wall_tracker, first
-    global x_con, y_con, h_con, a_con, robo_time
+    #global x_con, y_con, h_con, a_con, robo_time
     #print("Data In")
     sys.stdout.flush()
 
@@ -595,7 +732,7 @@ def jpg_frame_buffer_cb(data):
         if robot_id in positions:
                 # last position
                 opti_arr.append([positions[robot_id], rotations[robot_id]])
-                print('Last position', positions[robot_id], ' rotation', rotations[robot_id])
+                #print('Last position', positions[robot_id], ' rotation', rotations[robot_id])
 
         if first:
             first = False
@@ -604,20 +741,22 @@ def jpg_frame_buffer_cb(data):
             position = -1      # The current interval
             lost_count = 0     # The number of times the robot lost the wall
         else:
-            if not position == -1: print("Going to interval: ", position)
+            #if not position == -1: print("Going to interval: ", position)
             wall_tracker.update_robot(robot_frame)
             x_diff, y_diff, height_diff, angle_diff, num_match, lost = wall_tracker.chase_carrot()
             robot_frame, carrot_frame = wall_tracker.show_all_frames()
             out1.write(robot_frame)
             out2.write(carrot_frame)
+            robo_time = time.time()
             with lock:
-                robo_time = time.time()
-                x_con = x_diff
-                y_con = y_diff
-                h_con = height_diff
-                a_con = angle_diff
+                data_queue.put([robo_time, x_diff, y_diff, height_diff, angle_diff])
+                # x_con = x_diff
+                # y_con = y_diff
+                # h_con = height_diff
+                # a_con = angle_diff
             if np.sqrt(x_diff**2 + y_diff**2) < 10 and not lost: # If the robot is close enough to the carrot
                 position = wall_tracker.next_carrot() # Go to the next carrot
+                print("next carrot")
                 lost_count = 0 # Reset the lost count
 
             if position == TOTAL_INTERVALS:
@@ -630,7 +769,7 @@ def jpg_frame_buffer_cb(data):
     except pygame.error as e:
         print(f"Pygame error: {e}")
 
-    print(clock.get_fps())
+    #print(clock.get_fps())
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -641,8 +780,8 @@ def stream_loop():
     print("stream thread")
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     fps = 20
-    out1 = cv2.VideoWriter("robot.mp4", fourcc, fps, (screen_w, screen_h))
-    out2 = cv2.VideoWriter("carrot.mp4", fourcc, fps, (screen_w, screen_h))
+    out1 = cv2.VideoWriter(folder + "/robot" + str(instance) + ".mp4", fourcc, fps, (screen_w, screen_h))
+    out2 = cv2.VideoWriter(folder + "/carrot" + str(instance) + ".mp4", fourcc, fps, (screen_w, screen_h))
     pygame.init()
     wall_tracker = WallTraker(None, TOTAL_INTERVALS, INTERVAL_LENGTH, SKIP_INTERVAL)
 
@@ -657,14 +796,20 @@ def stream_loop():
     try:
         while(True):
             sys.stdout.flush()
-
             # You may change the pixformat and the framesize of the image transfered from the remote device
             # by modifying the below arguments.
             result = interface.call("jpeg_image_stream", "sensor.GRAYSCALE,sensor.HVGA")
+            print("Stream loop:", result)
             if result is not None:
 
-                # THE REMOTE DEVICE WILL START STREAMING ON SUCCESS. SO, WE NEED TO RECEIVE DATA IMMEDIATELY.
-                interface.stream_reader(jpg_frame_buffer_cb, queue_depth=8, read_timeout_ms=5000)
+                for x in range(10):
+                    # THE REMOTE DEVICE WILL START STREAMING ON SUCCESS. SO, WE NEED TO RECEIVE DATA IMMEDIATELY.
+                    info = interface.stream_reader(jpg_frame_buffer_cb, queue_depth=32, read_timeout_ms=5000)
+                    print("stream info:", info)
+                    if info == 1 or info == 2:
+                        break
+            
+            #time.sleep(1)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -676,20 +821,20 @@ def stream_loop():
                     pygame.quit()
                     print("RELEASE3")
                     sys.exit()
-                
+                    
                 
     except KeyboardInterrupt:
         sys.exit()
-
+TOTAL_INTERVALS = 10            # Total number of intervals in the demo video
 robo_thread = threading.Thread(target = runRobot)
-#stream_thread = threading.Thread(target = stream_loop)
+# stream_thread = threading.Thread(target = stream_loop)
 print("begin threads!")
 robo_thread.start()
-#stream_thread.start()
+# stream_thread.start()
 print("threads!!")
 
 robo_thread.join()
-#stream_thread.join()
+# stream_thread.join()
 print("Ended threads!")
 # print(threading.enumerate())
 sys.exit()

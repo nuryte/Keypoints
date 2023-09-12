@@ -11,18 +11,20 @@ Description  : Wall traker of the robot
 from typing import List, Tuple
 from State import State
 import numpy as np
-import math
+import math, time
 import cv2
 
 ### Constants ###   
-DEMO_VIDEO = "Timeline\\circular.mp4"                         # The path to the demo video
+DEMO_VIDEO = "Timeline\\line.mp4"                         # The path to the demo video
 MIN_NUM_MATCHES = 5                              # The minimum number of matches to be considered a match
+carrot_start = 0
 
 class WallTraker:
-    def __init__(self, initial_frame: np.array, total_interval: int, interval_length: int, skip_interval: int) -> None:
+    def __init__(self, initial_frame: np.array, total_interval: int, interval_length: int, skip_interval: int, starting_frame: int) -> None:
         self.total_interval = total_interval      # Total number of intervals in the demo video
         self.interval_length = interval_length    # Number of frames in a timeline interval
         self.skip_interval = skip_interval        # Interval between donkey and carrot
+        self.starting_frame = starting_frame
         self.accumulated_y_ratio = 1.0            # Accumulated y ratio
         self.total_states: List[State] = []       # A list of all states in the demo video
         self._load_all_states()                   # Load all frames from the demo video into a list of states
@@ -30,10 +32,16 @@ class WallTraker:
         self.carrot_index = -1                    # The index of the carrot state
         if initial_frame is not None:
             self.robot_state = State(initial_frame)   # Create a state object for the robot
-            self._find_donkey_carrot_state()          # Find the donkey and carrot state
+            # self._find_donkey_carrot_state()          # Find the donkey and carrot state
+            self.carrot_index = carrot_start
+            #self.donkey_state = self.total_states[self.donkey_index]
+            self.carrot_state = self.total_states[self.carrot_index]
         else:
             print("None Start")
             self.robot_state = None
+            self.carrot_index = carrot_start
+            #self.donkey_state = self.total_states[self.donkey_index]
+            self.carrot_state = self.total_states[self.carrot_index]
         
 
     def __str__(self) -> str:
@@ -46,16 +54,21 @@ class WallTraker:
         return      {*}: None
         '''
         # Create a VideoCapture object to read the video file
+        # cv2.namedWindow("Carrot", cv2.WINDOW_NORMAL)
+        # cv2.moveWindow("Carrot", 800, 200)     # Position the "Carrot" window at (1100, 100)
         video = cv2.VideoCapture(DEMO_VIDEO)
         for index in range(self.total_interval):
             print("Loading interval: " + str(index+1))
             # Read a frame from the video
-            video.set(cv2.CAP_PROP_POS_FRAMES, (index+1)*self.interval_length)
+            video.set(cv2.CAP_PROP_POS_FRAMES, self.starting_frame + (index+1)*self.interval_length)
+            print("carrot: ", self.starting_frame + (index+1)*self.interval_length)
             ret, frame = video.read()
             if not ret:
                 raise Exception("Can't receive frame (stream end?). Exiting ...")
             # Create a state object
             state = State(frame, load=True, interval=index+1)
+            #state.show_frame("Carrot")
+            
             self.total_states.append(state)
         video.release()
 
@@ -75,11 +88,13 @@ class WallTraker:
                 min_distance = distance
                 self.donkey_index = index
         self.carrot_index = self.donkey_index + self.skip_interval
-        print("donkey_index: ", self.donkey_index)
+        #print("donkey_index: ", self.donkey_index)
         if self.carrot_index >= self.total_interval:
             self.carrot_index = self.total_interval - 1
             print ("#-------- The donkey is too close to the destination --------#")
-        self.donkey_state = self.total_states[self.donkey_index]
+
+        self.carrot_index = carrot_start
+        #self.donkey_state = self.total_states[self.donkey_index]
         self.carrot_state = self.total_states[self.carrot_index]
 
     def _calculate_moving_average_y(self, new_y_ratio: float) -> float:
@@ -112,10 +127,10 @@ class WallTraker:
         '''
         query_coordinate, train_coordinate, num_matches = self.robot_state.get_match_coordinate(self.carrot_state)
         # If no match is found, return 0 velocity
-        print("num_matches: ", num_matches)
         if num_matches <= MIN_NUM_MATCHES: return 0, 0,0,0, num_matches, True
         # Calculate the average x and y difference
         center_diff, height_diff, width_diff, angle_diff = self.compare_confidence_ellipses(query_coordinate, train_coordinate)
+        print("num_matches: ", num_matches, " Carrot: ", self.carrot_index, " Dist: ", np.linalg.norm(center_diff))
         
         return center_diff[0], center_diff[1], height_diff, angle_diff, num_matches, False
     
@@ -143,10 +158,10 @@ class WallTraker:
         angles2 = np.arctan2(eigenvectors2[1, :], eigenvectors2[0, :])
         
         # Calculate the differences
-        center_diff = np.abs(center1 - center2)
-        height_diff = np.abs(lengths1[1] - lengths2[1])
-        width_diff = np.abs(lengths1[0] - lengths2[0])
-        angle_diff = np.abs(angles1[1] - angles2[1])  # Using the angle of the "major" axis
+        center_diff = center1 - center2
+        height_diff = lengths1[1] - lengths2[1]
+        width_diff = lengths1[0] - lengths2[0]
+        angle_diff =angles1[1] - angles2[1]  # Using the angle of the "major" axis
         
         # # Output the differences
         # print("Difference in x,y center: ", center_diff)
@@ -179,7 +194,10 @@ class WallTraker:
         '''
         if self.robot_state is None:
             self.robot_state = State(new_frame)
-            self._find_donkey_carrot_state()          # Find the donkey and carrot state
+            self.carrot_index = carrot_start
+            #self.donkey_state = self.total_states[self.donkey_index]
+            self.carrot_state = self.total_states[self.carrot_index]
+            #self._find_donkey_carrot_state()          # Find the donkey and carrot state
         else:
             self.robot_state = State(new_frame)
 
@@ -189,23 +207,23 @@ class WallTraker:
         param       {*} self: -
         return      {*}: None
         '''
-        # # Create windows
-        # cv2.namedWindow("Robot", cv2.WINDOW_NORMAL)
+        # Create windows
+        cv2.namedWindow("Robot", cv2.WINDOW_NORMAL)
         # cv2.namedWindow("Donkey", cv2.WINDOW_NORMAL)
-        # cv2.namedWindow("Carrot", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("Carrot", cv2.WINDOW_NORMAL)
 
-        # # Move the windows to desired positions on the screen
-        # cv2.moveWindow("Robot", 0, 200)       # Position the "Robot" window at (100, 100)
+        # Move the windows to desired positions on the screen
+        cv2.moveWindow("Robot", 0, 200)       # Position the "Robot" window at (100, 100)
         # cv2.moveWindow("Donkey", 400, 200)      # Position the "Donkey" window at (600, 100)
-        # cv2.moveWindow("Carrot", 800, 200)     # Position the "Carrot" window at (1100, 100)
+        cv2.moveWindow("Carrot", 800, 200)     # Position the "Carrot" window at (1100, 100)
 
         robot = self.robot_state.temp_frame
         carrot = self.carrot_state.temp_frame
 
         # Display the frames in their respective windows
-        # self.robot_state.show_frame("Robot")
+        self.robot_state.show_frame("Robot")
         # self.donkey_state.show_frame("Donkey")
-        # self.carrot_state.show_frame("Carrot")
+        self.carrot_state.show_frame("Carrot")
         # Debug
         # Show the carrot frame
         # cv2.imshow("Carrot_Original", self.carrot_state.frame)
