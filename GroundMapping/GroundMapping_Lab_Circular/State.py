@@ -18,7 +18,7 @@ import cv2
 
 DESCRIPTOR_FILE_PATH = "Timeline/fly_demo2_kpt_des"      # Path to the descriptor files
 DESCRIPTOR_FILE_NAME = "fly_demo2_kpt_des"
-MAX_MATCH_DISTANCE = 35                         # The maximum distance between two matched keypoints
+MAX_MATCH_DISTANCE = 30#35                         # The maximum distance between two matched keypoints
 
 
 class State:

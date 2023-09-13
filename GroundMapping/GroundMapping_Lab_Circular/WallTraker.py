@@ -15,9 +15,10 @@ import math, time
 import cv2
 
 ### Constants ###   
-DEMO_VIDEO = "Timeline\\line.mp4"                         # The path to the demo video
+DEMO_VIDEO = "Timeline\\rawEx5.mp4"                         # The path to the demo video
 MIN_NUM_MATCHES = 5                              # The minimum number of matches to be considered a match
-carrot_start = 0
+carrot_start = 10
+min_keypoints_carrot = 70
 
 class WallTraker:
     def __init__(self, initial_frame: np.array, total_interval: int, interval_length: int, skip_interval: int, starting_frame: int) -> None:
@@ -184,6 +185,12 @@ class WallTraker:
             self.carrot_index = self.total_interval
         else:
             self.carrot_state = self.total_states[self.carrot_index]
+        while len(self.carrot_state.descriptors) < min_keypoints_carrot:
+            self.carrot_index += 1
+            if self.carrot_index >= self.total_interval:
+                self.carrot_index = self.total_interval
+            else:
+                self.carrot_state = self.total_states[self.carrot_index]
         return self.carrot_index
 
     def update_robot(self, new_frame: np.array) -> None:

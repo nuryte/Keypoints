@@ -2,12 +2,12 @@ import cv2
 import numpy as np
 from collections import Counter
 
-MAX_FRAMES = 280         # large numbers will cover the whole video
+MAX_FRAMES = 600         # large numbers will cover the whole video
 start_frame = 0
-INTERVAL = 10             # frames per inverval 
-INTERVAL_ADVANCE = 5
-duplicate_minimum = 4
-MAX_MATCH_DISTANCE = 20  # match threshold
+INTERVAL = 15             # frames per inverval 
+INTERVAL_ADVANCE = 6
+duplicate_minimum = 8
+MAX_MATCH_DISTANCE = 25  # match threshold
 
 # Create an ORB object and detect keypoints and descriptors in the template
 orb = cv2.ORB_create(nfeatures=1000)
@@ -19,7 +19,7 @@ fps = 5
 full = cv2.VideoWriter("Timeline\\line_demo.mp4", fourcc, 20, (400, 300))
 final = cv2.VideoWriter("Timeline\\line_demo_fin.mp4", fourcc, 2, (400, 300))
 
-VIDEO = "Timeline\\line.mp4"
+VIDEO = "Timeline\\rawEx5.mp4"
 DESCRIPTOR_FILE = "Timeline\\fly_demo2"
 # VIDEO = "corner.mp4"
 # DESCRIPTOR_FILE = "side_demo"
@@ -96,22 +96,22 @@ def analyze_kpt_des(frame, keypoints, descriptors, filename, video):
     kpts_fin, des_fin = [], []
     kpts_fin_idx = []
     k = INTERVAL
-    korigin = INTERVAL -1
+    korigin = int(INTERVAL/2)
     final_frame = frame[korigin].copy()
 
     while k > 0:
         k -= 1
-        if k == INTERVAL - 1:
-            kpts_cur = keypoints[k] #current frame keypoints
-            des_cur = descriptors[k] #current frame descriptors
-            kpts_fin = keypoints[korigin] #reference frame keypoints
-            des_fin = descriptors[korigin] #reference frame descriptors
-            continue
-        else:
-            kpts_cur = keypoints[k] #current frame keypoints
-            des_cur = descriptors[k] #current frame descriptors
-            kpts_fin = keypoints[korigin] #reference frame keypoints
-            des_fin = descriptors[korigin] #reference frame descriptors
+        # if k == INTERVAL - 1:
+        #     kpts_cur = keypoints[k] #current frame keypoints
+        #     des_cur = descriptors[k] #current frame descriptors
+        #     kpts_fin = keypoints[korigin] #reference frame keypoints
+        #     des_fin = descriptors[korigin] #reference frame descriptors
+        #     continue
+        # else:
+        kpts_cur = keypoints[k] #current frame keypoints
+        des_cur = descriptors[k] #current frame descriptors
+        kpts_fin = keypoints[korigin] #reference frame keypoints
+        des_fin = descriptors[korigin] #reference frame descriptors
         
         if descriptors is None:
             print("No keypoints/descriptors in frame")

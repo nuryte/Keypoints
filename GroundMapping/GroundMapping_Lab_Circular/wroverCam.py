@@ -23,8 +23,10 @@ import queue
 lock = threading.Lock()
 
 data_queue = queue.Queue()
-folder = "GroundData"
-instance = 7
+folder = "GroundFinal"
+if not os.path.exists(folder):
+    os.makedirs(folder)
+instance = "6"
 
 def find_point_on_circle(nx, ny, t, s):#n radius, t time, s frequency 
     # Calculate frequency
@@ -41,13 +43,13 @@ def find_point_on_circle(nx, ny, t, s):#n radius, t time, s frequency
 
 PORT = 'COM20'
 
-mass = 7
+mass = 4
 massthrust = 10
 thrustratio = mass/massthrust
 
 basethrust = .4
-heightSet = 1.4
-yawSet = 1.45
+heightSet = 1.6
+yawSet = 0 + np.pi
 
 feedbackPD = { "roll" : 0,
   "pitch" : 0,
@@ -69,15 +71,15 @@ feedbackPD = { "roll" : 0,
   "kdroll" : 0 ,
   "kppitch" : 0,
   "kdpitch" : 0,
-  "kpyaw" : -.5*thrustratio,
-  "kdyaw" : -15*thrustratio,
+  "kpyaw" : -.8*thrustratio,
+  "kdyaw" : -24*thrustratio,
 
   "kpx" : 0,
   "kdx" : 0,
   "kpy" : 0,
   "kdy" : 0,
-  "kpz" : 1.8*thrustratio,#.5,#.5
-  "kdz" : .1*thrustratio,#-3
+  "kpz" : 1.3*thrustratio,#.5,#.5
+  "kdz" : .19*thrustratio,#-3
   "kiz" : 0,
 
   "integral_dt" : 0,#.0001,
@@ -282,8 +284,8 @@ robo_time = 0
 ### Global Variables ###
 
 
-TOTAL_INTERVALS = 58            # Total number of intervals in the demo video
-INTERVAL_LENGTH = 5             # Number of frames in a timeline interval
+TOTAL_INTERVALS = 99            # Total number of intervals in the demo video
+INTERVAL_LENGTH = 6             # Number of frames in a timeline interval
 SKIP_INTERVAL = 1                # Interval between donkey and carrot
 
 V_GAIN = 3                       # Gain of velocity
@@ -311,39 +313,6 @@ def receive_rigid_body_frame(id, position, rotation_quaternion):
     # Store the roll pitch and yaw angles
     rotations[id] = (rotx, roty, rotz)
 
-def plot_speeds():
-    # # Plot v values
-    # plt.figure()
-    # plt.plot(V_VALUES)
-    # plt.title('Velocity (v) over Time')
-    # plt.xlabel('Time')
-    # plt.ylabel('Velocity (v)')
-    # plt.grid(True)
-    # plt.savefig("v_plot.png")
-    # plt.show()
-
-    # Plot ω values
-    # plt.figure(1)  # Create a new figure window
-    # plt.plot(ω_VALUES)
-    # plt.title('Angular Velocity (ω) over Time')
-    # plt.xlabel('Time')
-    # plt.ylabel('Angular Velocity (ω)')
-    # plt.grid(True)
-    # plt.savefig("omega_plot.png")
-
-    # # Plot number of matches
-    # plt.figure(2)  # Create another new figure window
-    # plt.plot(NUM_MATCH)
-    # plt.title('Number of Matches over Time')
-    # plt.xlabel('Time')
-    # plt.ylabel('Number of Matches')
-    # plt.grid(True)
-    # plt.savefig("match_plot.png")
-
-    # # Now show both figures
-    # plt.show()
-    pass
-
 clientAddress = "192.168.0.14"
 optitrackServerAddress = "192.168.0.4"
 
@@ -361,7 +330,10 @@ streaming_client.rigid_body_listener = receive_rigid_body_frame
 # This will run perpetually, and operate on a separate thread.
 is_running = streaming_client.run()
 
+print("running", is_running)
+#if not is_running:
 
+    
 # Fix Python 2.x.
 try: input = raw_input
 except NameError: pass
@@ -408,30 +380,43 @@ def runRobot():
     xy_d = np.array([1.823,0.4529])
     xy_center = np.array([0,0])
 
-    xyp = .01#.6
-    xyd = 500#.4
-    xyi = 0
-    ex_norm_pid = PID(xyp, xyi, xyd, setpoint = 0.)
+    xyp = 0.0031#.0032#.0033
+    xyd = 0.007#0.011#0.006#0.0045
+    xyi = 0.00001
+    ex_norm_pid = PID(xyp, xyi, xyd , setpoint = 0.)
     ey_norm_pid = PID(xyp, xyi, xyd, setpoint = 0.)
-    lead_z_pid = PID(.6, 0.02, .4, setpoint = 1.8)
-    yaw_pid = PID(0.2, 0.02, 0.3, setpoint = 0)
-    yaw_pid.error_map = pi_clip
+    ex_norm_pid.proportional_on_measurement = True
+    ey_norm_pid.proportional_on_measurement = True
+    ex_norm_pid.differential_on_measurement = False
+    ey_norm_pid.differential_on_measurement = False
+    
+    #lead_z_pid = PID(.6, 0.02, .4, setpoint = 1.8)
+    # yaw_pid = PID(0.2, 0.02, 0.4, setpoint = 0)
+    # yaw_pid.error_map = pi_clip
 
     yaw_diff = yawSet
     realx = 0
     realy = 0
-    xygamma = .2
+    xygamma = 0.975
+    
     robo_time = 0
     x_con = 0
     y_con = 0
     h_con = 0
     a_con = 0
     angle_accum = 0
-    anglegamma = .9975
+    anglegamma1 = .8
+    anglegamma2 = .99
+    angle_counter = 0
     ################################################
-    
+    ddgamma = 0
+    ddx = 0
+    ddy = 0
     try:
         while True:
+            key = cv2.waitKey(1)
+            if key == 27:
+                break
             # if pygame.joystick.get_count() == 0:
             #     while pygame.joystick.get_count() == 0:
             #         print("joy_lost")
@@ -465,7 +450,8 @@ def runRobot():
                 fx = 0
 
             if abs(joystick.get_axis(0)) > 0.1:
-                tauz = .5 * joystick.get_axis(0)  # right handler: left-right
+                yaw_diff += .3 * joystick.get_axis(0)*(time.time() - time_start)  # right handler: left-right
+                print(yaw_diff)
             else:
                 tauz = 0
             if abs(joystick.get_axis(2)) > 0.1:
@@ -506,38 +492,53 @@ def runRobot():
                     x_con = data[1]
                     y_con = data[2]
                     h_con = data[3]
-                    a_con = pi_clip(data[4])
-                lock.release()
+                    if data[5] > 10:
+                        a_con = pi_clip(data[4])# + np.pi/2)
+                    else:
+                        a_con = 0
+                    lock.release()
+                    realx = realx * xygamma +x_con * (1-xygamma)
+                    realy = realy * xygamma +y_con * (1-xygamma)
+                    tx  = ex_norm_pid(realx)
+                    ey_norm_pid(realy)
+                    px, ix, dx =  ex_norm_pid.components   # forces of x in the body frame 
+                    py, iy, dy =  ey_norm_pid.components   # forces of x in the body frame 
+                    ddx = ddx * ddgamma + dx * (1-ddgamma)
+                    ddy = ddy * ddgamma + dy * (1-ddgamma)
+                    lead_fx = px + ix + ddx
+                    lead_fy =  py + iy + ddy   # forces of x in the body frame 
+                else:
+                    lock.release()
+                
 
             if b_state:
                 if  time.time() - robo_time < .25:
-                    yaw_pid.setpoint = 0
+                    #yaw_pid.setpoint = 0
                     
                     lead_tauz = yaw_diff#yaw_pid(rotations[robot_id][2]*np.pi/180)#yaw_pid(a_con)#
                     lead_fz = heightSet#lead_z_pid(positions[robot_id][2])#lead_z_pid(h_con)#
                     #print(round(a_con,2), round(-rotations[robot_id][2]*np.pi/180, 2), round(h_con,2))
                     
-                    realx = realx * xygamma +x_con * (1-xygamma)
-                    realy = realy * xygamma +y_con * (1-xygamma)
-                    lead_fx = fx - ex_norm_pid(x_con)   # forces of x in the body frame 
-                    lead_fy = fy - ey_norm_pid(y_con)   # forces of x in the body frame 
                     force_vec = np.array([lead_fx, lead_fy])
                     
-                    if np.linalg.norm(force_vec) > (lead_fz  )*.3:
-                        force_vec = force_vec/np.linalg.norm(force_vec) * lead_fz*.3
-                    if np.linalg.norm((realx, realy)) < 40:
-                        yaw_diff += a_con * .01
-                        #angle_accum = angle_accum * anglegamma + a_con * (1 - anglegamma)
+                    
+                    if np.linalg.norm(force_vec) > (lead_fz  )*.4:
+                        force_vec = force_vec/np.linalg.norm(force_vec) * lead_fz*.4
+                        
+                        
+                    yaw_diff += a_con * .01# * anglegamma2 **angle_counter 
+                    #print(yaw_diff)
+                    angle_counter += 1
                     #angle_values.append(round(angle_accum,2))
                     #print(round(angle_accum, 2))
-                    fx = -force_vec[1]
-                    fy = -force_vec[0]   
+                    fx = force_vec[1]
+                    fy = force_vec[0]   
                     tauz = lead_tauz 
                     fz = lead_fz 
-                    PX_VALUES.append(positions[robot_id][0])
-                    PY_VALUES.append(positions[robot_id][1])
-                    VX_VALUES.append(fx)
-                    VY_VALUES.append(fy)
+                    # PX_VALUES.append(positions[robot_id][0])
+                    # PY_VALUES.append(positions[robot_id][1])
+                    # VX_VALUES.append(fx)
+                    # VY_VALUES.append(fy)
                 else:
                     lead_tauz = yaw_diff#yaw_pid(rotations[robot_id][2]*np.pi/180)#yaw_pid(a_con)
                     lead_fz = heightSet#lead_z_pid(positions[robot_id][2])
@@ -560,29 +561,29 @@ def runRobot():
                 
 
             # state = not state
-            time.sleep(0.0075)  # 0.005
+            time.sleep(0.005)  # 0.005
             # while(time.time() - time_start < 0.01):
             # time.sleep(0.001) #0.005
     except KeyboardInterrupt:
         print("The end")
-    print(angle_values)
+    #print(angle_values)
     # save positional data
-    xy_array = np.column_stack((PX_VALUES, PY_VALUES))
-    np.save(folder + '/position' + str(instance) + '.npy', xy_array)
+    # xy_array = np.column_stack((PX_VALUES, PY_VALUES))
+    # np.save(folder + '/position' + str(instance) + '.npy', xy_array)
     
     
     # Create a figure and a 1x2 grid of subplots
-    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    # fig, axs = plt.subplots(1, 2, figsize=(12, 6))
 
     # Plot positions as a trajectory in 2D space
-    optiOrigin = np.load("Timeline\\opti_arrayCircle.npy")
-    print(optiOrigin.shape)
-    optiXY = optiOrigin[:, 0, :2][0:500]
-    axs[0].plot(-1*np.array(optiXY[:, 1]),np.array(optiXY[:, 0]), marker='x', linestyle='-')
-    axs[0].plot(-1*np.array(PY_VALUES),np.array(PX_VALUES), marker='o', linestyle='-')
-    axs[0].set_title('Positional Trajectory')
-    axs[0].set_xlabel('X Position')
-    axs[0].set_ylabel('Y Position')
+    # optiOrigin = np.load("Timeline\\opti_arrayCircle.npy")
+    # print(optiOrigin.shape)
+    # optiXY = optiOrigin[:, 0, :2][0:500]
+    # axs[0].plot(-1*np.array(optiXY[:, 1]),np.array(optiXY[:, 0]), marker='x', linestyle='-')
+    # axs[0].plot(-1*np.array(PY_VALUES),np.array(PX_VALUES), marker='o', linestyle='-')
+    # axs[0].set_title('Positional Trajectory')
+    # axs[0].set_xlabel('X Position')
+    # axs[0].set_ylabel('Y Position')
     
 
     
@@ -593,23 +594,23 @@ def runRobot():
 
     # Plot velocities
     
-    min_dists = np.empty(xy_array.shape[0])
-    for i, point2 in enumerate(xy_array):
-        # Compute the Euclidean distances to all points in array1
-        distances = np.linalg.norm(optiXY - point2, axis=1)
+    # min_dists = np.empty(xy_array.shape[0])
+    # for i, point2 in enumerate(xy_array):
+    #     # Compute the Euclidean distances to all points in array1
+    #     distances = np.linalg.norm(optiXY - point2, axis=1)
         
-        # Find the minimum distance for the current point in array2
-        min_dists[i] = np.min(distances)
-    axs[1].plot(min_dists, label='Error', marker='o', linestyle='-')
-    #axs[1].plot(VY_VALUES, label='Y Velocity', marker='x', linestyle='-')
-    axs[1].set_title('Error In Distance')
-    axs[1].set_xlabel('Time')
-    axs[1].set_ylabel('Error')
-    axs[1].legend()
+    #     # Find the minimum distance for the current point in array2
+    #     min_dists[i] = np.min(distances)
+    # axs[1].plot(min_dists, label='Error', marker='o', linestyle='-')
+    # #axs[1].plot(VY_VALUES, label='Y Velocity', marker='x', linestyle='-')
+    # axs[1].set_title('Error In Distance')
+    # axs[1].set_xlabel('Time')
+    # axs[1].set_ylabel('Error')
+    # axs[1].legend()
 
-    # Show the plots
-    plt.tight_layout()
-    plt.savefig('p_and_e_plot.png')
+    # # Show the plots
+    # plt.tight_layout()
+    # plt.savefig('p_and_e_plot.png')
         
 
 
@@ -624,6 +625,7 @@ fps = 10
 
 
 opti_arr = []
+mean_arr = []
 screen_w = 400
 screen_h = 300
 
@@ -651,8 +653,10 @@ def stream_loop():
     first = True
     robo_time = time.time()
     mean_count = 0
+    meanave = 100
+    meangamma = .5
     while True:
-        if cap.isOpened() and time.time() - robo_time > .04:
+        if cap.isOpened() and time.time() - robo_time > .02:
             
             ret, robot_frame = cap.read()
             if ret:
@@ -673,13 +677,14 @@ def stream_loop():
                     robo_time = time.time()
                     
                     with lock:
-                        data_queue.put([robo_time, x_diff, y_diff, height_diff, angle_diff])
-                
-                    
-                if np.sqrt(x_diff**2 + y_diff**2) < 20 and not lost: # If the robot is close enough to the carrot
+                        data_queue.put([robo_time, x_diff, y_diff, height_diff, angle_diff, num_match])
+                opti_arr.append([positions[robot_id][0], positions[robot_id][1]])
+                mean_arr.append([x_diff, y_diff])
+                meanave = meanave * meangamma + np.sqrt(x_diff**2 + y_diff**2) * (1-meangamma)
+                if meanave < 20 and num_match > 10: # If the robot is close enough to the carrot
                     
                     mean_count += 1
-                    if mean_count == 100:
+                    if mean_count == 10:
                         position = wall_tracker.next_carrot() # Go to the next carrot
                         print("next carrot")
                         lost_count = 0 # Reset the lost count
@@ -701,14 +706,15 @@ def stream_loop():
     out3.release()
     cv2.destroyAllWindows()
     cap.release()
-    folder_path = 'GroundMapping\\GroundMapping_Lab_Circular\\numpy'
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
+    
 
     # Save the array to a text file
-    file_path = os.path.join(folder_path, 'opti_array.npy')
+    file_path = os.path.join(folder, 'opti_array' + str(instance) + '.npy')
     print("RELEASE2")
     np.save(file_path, np.array(opti_arr))
+    file_path = os.path.join(folder, 'mean_array' + str(instance) + '.npy')
+    print("RELEASE3")
+    np.save(file_path, np.array(mean_arr))
 
 
 
