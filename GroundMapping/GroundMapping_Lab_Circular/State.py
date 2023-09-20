@@ -16,9 +16,9 @@ import cv2
 # DESCRIPTOR_FILE_PATH = "GroundMapping\\GroundMapping_Lab_Circular\\fly_demo_kpt_des"      # Path to the descriptor files
 # DESCRIPTOR_FILE_NAME = "fly_demo_kpt_des"
 
-DESCRIPTOR_FILE_PATH = "Timeline/fly_demo2_kpt_des"      # Path to the descriptor files
-DESCRIPTOR_FILE_NAME = "fly_demo2_kpt_des"
-MAX_MATCH_DISTANCE = 30#35                         # The maximum distance between two matched keypoints
+DESCRIPTOR_FILE_PATH = "Timeline/fly_demo3_kpt_des"      # Path to the descriptor files
+DESCRIPTOR_FILE_NAME = "fly_demo3_kpt_des"
+MAX_MATCH_DISTANCE = 35#35                         # The maximum distance between two matched keypoints
 
 
 class State:
@@ -181,6 +181,14 @@ class State:
             
         # Return the computed parameters (Optional, based on your needs)
         return mean_x, mean_y, std_x*2, std_y*2
+    
+    def draw_ellipse(self, mean, eigenvalues, angle, color):
+        self.temp_frame = cv2.ellipse(self.temp_frame, 
+                    (int(mean[0]), int(mean[1])), 
+                    (int(np.sqrt(eigenvalues[0])), int(np.sqrt(eigenvalues[1]))), 
+                    angle, 
+                    0, 360, 
+                    color, 2)
 
     def show_frame(self, title: str) -> None:
         '''

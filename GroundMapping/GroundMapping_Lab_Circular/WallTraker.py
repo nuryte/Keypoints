@@ -15,10 +15,10 @@ import math, time
 import cv2
 
 ### Constants ###   
-DEMO_VIDEO = "Timeline\\rawEx5.mp4"                         # The path to the demo video
+DEMO_VIDEO = "GroundFinal3\\rawEx.mp4"                         # The path to the demo video
 MIN_NUM_MATCHES = 5                              # The minimum number of matches to be considered a match
-carrot_start = 10
-min_keypoints_carrot = 70
+carrot_start = 0 
+min_keypoints_carrot = 130
 
 class WallTraker:
     def __init__(self, initial_frame: np.array, total_interval: int, interval_length: int, skip_interval: int, starting_frame: int) -> None:
@@ -157,6 +157,11 @@ class WallTraker:
         # Compute the angles (orientation) of the eigenvectors
         angles1 = np.arctan2(eigenvectors1[1, :], eigenvectors1[0, :])
         angles2 = np.arctan2(eigenvectors2[1, :], eigenvectors2[0, :])
+        # Draw the ellipse
+        self.carrot_state.draw_ellipse(center1, eigenvalues1, angles1[0]* 180 / np.pi, (255,0,255))
+        self.carrot_state.draw_ellipse(center2,eigenvalues2, angles2[0]* 180 / np.pi, (255,255,0))
+        self.robot_state.draw_ellipse(center2,eigenvalues2, angles2[0]* 180 / np.pi, (255,255,0))
+        self.robot_state.draw_ellipse(center1,eigenvalues1, angles1[0]* 180 / np.pi, (255,0,255))
         
         # Calculate the differences
         center_diff = center1 - center2

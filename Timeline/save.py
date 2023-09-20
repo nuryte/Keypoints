@@ -2,12 +2,12 @@ import cv2
 import numpy as np
 from collections import Counter
 
-MAX_FRAMES = 600         # large numbers will cover the whole video
+MAX_FRAMES = 500         # large numbers will cover the whole video
 start_frame = 0
 INTERVAL = 15             # frames per inverval 
-INTERVAL_ADVANCE = 6
-duplicate_minimum = 8
-MAX_MATCH_DISTANCE = 25  # match threshold
+INTERVAL_ADVANCE = 5
+duplicate_minimum = 4
+MAX_MATCH_DISTANCE = 20  # match threshold
 
 # Create an ORB object and detect keypoints and descriptors in the template
 orb = cv2.ORB_create(nfeatures=1000)
@@ -16,11 +16,11 @@ bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 fps = 5
-full = cv2.VideoWriter("Timeline\\line_demo.mp4", fourcc, 20, (400, 300))
-final = cv2.VideoWriter("Timeline\\line_demo_fin.mp4", fourcc, 2, (400, 300))
+full = cv2.VideoWriter("Timeline\\rand_demo.mp4", fourcc, 20, (400, 300))
+final = cv2.VideoWriter("Timeline\\rand_demo_fin.mp4", fourcc, 2, (400, 300))
 
-VIDEO = "Timeline\\rawEx5.mp4"
-DESCRIPTOR_FILE = "Timeline\\fly_demo2"
+VIDEO = "GroundFinal3\\rawEx.mp4"
+DESCRIPTOR_FILE = "Timeline\\fly_demo3"
 # VIDEO = "corner.mp4"
 # DESCRIPTOR_FILE = "side_demo"
 
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     #     save_kpt_des(frame_kpt[i*INTERVAL], frame_des[i*INTERVAL], "Timeline//fly_demo2_kpt_des//"+ "fly_demo2_kpt_des%d.yml"%(i+1))
     for i in range( int( len(frames)/INTERVAL_ADVANCE) - int(INTERVAL/INTERVAL_ADVANCE)):
         print("Interval", i+1)
-        analyze_kpt_des(frames, frame_kpt, frame_des, "Timeline//fly_demo2_kpt_des//"+ "fly_demo2_kpt_des%d.yml"%(i+1), "Timeline//fly_demo2" + "/fly_demo2_%d.mp4"%(i+1))
+        analyze_kpt_des(frames, frame_kpt, frame_des, "Timeline//fly_demo3_kpt_des//"+ "fly_demo3_kpt_des%d.yml"%(i+1), "Timeline//fly_demo3" + "/fly_demo3_%d.mp4"%(i+1))
         frames = frames[-(len(frames)-INTERVAL_ADVANCE):]
         frame_kpt = frame_kpt[-(len(frame_kpt)-INTERVAL_ADVANCE):]
         frame_des = frame_des[-(len(frame_des)-INTERVAL_ADVANCE):]

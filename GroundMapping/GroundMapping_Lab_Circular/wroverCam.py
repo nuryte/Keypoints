@@ -23,10 +23,10 @@ import queue
 lock = threading.Lock()
 
 data_queue = queue.Queue()
-folder = "GroundFinal"
+folder = "GroundFinal3"
 if not os.path.exists(folder):
     os.makedirs(folder)
-instance = "6"
+instance = "3"
 
 def find_point_on_circle(nx, ny, t, s):#n radius, t time, s frequency 
     # Calculate frequency
@@ -43,13 +43,13 @@ def find_point_on_circle(nx, ny, t, s):#n radius, t time, s frequency
 
 PORT = 'COM20'
 
-mass = 4
+mass = 6
 massthrust = 10
 thrustratio = mass/massthrust
 
 basethrust = .4
 heightSet = 1.6
-yawSet = 0 + np.pi
+yawSet = 0  +np.pi +  + np.pi/4
 
 feedbackPD = { "roll" : 0,
   "pitch" : 0,
@@ -284,8 +284,8 @@ robo_time = 0
 ### Global Variables ###
 
 
-TOTAL_INTERVALS = 99            # Total number of intervals in the demo video
-INTERVAL_LENGTH = 6             # Number of frames in a timeline interval
+TOTAL_INTERVALS = 97           # Total number of intervals in the demo video
+INTERVAL_LENGTH = 5             # Number of frames in a timeline interval
 SKIP_INTERVAL = 1                # Interval between donkey and carrot
 
 V_GAIN = 3                       # Gain of velocity
@@ -316,7 +316,7 @@ def receive_rigid_body_frame(id, position, rotation_quaternion):
 clientAddress = "192.168.0.14"
 optitrackServerAddress = "192.168.0.4"
 
-robot_id = 384
+robot_id = 391#384
 
 # This will create a new NatNet client
 streaming_client = NatNetClient()
@@ -328,7 +328,8 @@ streaming_client.rigid_body_listener = receive_rigid_body_frame
 
 # Start up the streaming client now that the callbacks are set up.
 # This will run perpetually, and operate on a separate thread.
-is_running = streaming_client.run()
+is_running = False
+# is_running = streaming_client.run()
 
 print("running", is_running)
 #if not is_running:
@@ -380,8 +381,8 @@ def runRobot():
     xy_d = np.array([1.823,0.4529])
     xy_center = np.array([0,0])
 
-    xyp = 0.0031#.0032#.0033
-    xyd = 0.007#0.011#0.006#0.0045
+    xyp = 0.0035#.0032#.0033
+    xyd = 0.008#0.011#0.006#0.0045
     xyi = 0.00001
     ex_norm_pid = PID(xyp, xyi, xyd , setpoint = 0.)
     ey_norm_pid = PID(xyp, xyi, xyd, setpoint = 0.)
@@ -397,7 +398,7 @@ def runRobot():
     yaw_diff = yawSet
     realx = 0
     realy = 0
-    xygamma = 0.975
+    xygamma = 0.9
     
     robo_time = 0
     x_con = 0
@@ -471,7 +472,7 @@ def runRobot():
             # absz = .5
 
             if abs(joystick.get_axis(1)) > 0.15:
-                absz += -(time.time() - time_start) * joystick.get_axis(1)*.3
+                absz += -(time.time() - time_start) * joystick.get_axis(1)
             
             
             if b_state == 0:
@@ -492,21 +493,28 @@ def runRobot():
                     x_con = data[1]
                     y_con = data[2]
                     h_con = data[3]
-                    if data[5] > 10:
-                        a_con = pi_clip(data[4])# + np.pi/2)
-                    else:
-                        a_con = 0
-                    lock.release()
                     realx = realx * xygamma +x_con * (1-xygamma)
                     realy = realy * xygamma +y_con * (1-xygamma)
+                    if data[5] > 15 and np.linalg.norm([realx, realy]) < 50:
+                        a_con = pi_clip(data[4])# + np.pi/2)
+                        print(a_con)
+                        angle_accum = angle_accum * .975 + a_con * .025
+                        
+                        yaw_diff += angle_accum * .01 # * anglegamma2 **angle_counter 
+                        angle_accum -= angle_accum * .01
+                           
+                    else:
+                        a_con = 0
+                        angle_accum = angle_accum * .9 + a_con * .1
+                    lock.release()
                     tx  = ex_norm_pid(realx)
-                    ey_norm_pid(realy)
-                    px, ix, dx =  ex_norm_pid.components   # forces of x in the body frame 
-                    py, iy, dy =  ey_norm_pid.components   # forces of x in the body frame 
-                    ddx = ddx * ddgamma + dx * (1-ddgamma)
-                    ddy = ddy * ddgamma + dy * (1-ddgamma)
-                    lead_fx = px + ix + ddx
-                    lead_fy =  py + iy + ddy   # forces of x in the body frame 
+                    ty = ey_norm_pid(realy)
+                    # px, ix, dx =  ex_norm_pid.components   # forces of x in the body frame 
+                    # py, iy, dy =  ey_norm_pid.components   # forces of x in the body frame 
+                    # ddx = ddx * ddgamma + dx * (1-ddgamma)
+                    # ddy = ddy * ddgamma + dy * (1-ddgamma)
+                    lead_fx = tx
+                    lead_fy =  ty   # forces of x in the body frame 
                 else:
                     lock.release()
                 
@@ -522,11 +530,10 @@ def runRobot():
                     force_vec = np.array([lead_fx, lead_fy])
                     
                     
-                    if np.linalg.norm(force_vec) > (lead_fz  )*.4:
-                        force_vec = force_vec/np.linalg.norm(force_vec) * lead_fz*.4
+                    # if np.linalg.norm(force_vec) > (lead_fz  )*.6:
+                    #     force_vec = force_vec/np.linalg.norm(force_vec) * lead_fz*.6
                         
                         
-                    yaw_diff += a_con * .01# * anglegamma2 **angle_counter 
                     #print(yaw_diff)
                     angle_counter += 1
                     #angle_values.append(round(angle_accum,2))
@@ -655,8 +662,9 @@ def stream_loop():
     mean_count = 0
     meanave = 100
     meangamma = .5
+    angle_accum = 0
     while True:
-        if cap.isOpened() and time.time() - robo_time > .02:
+        if cap.isOpened() and time.time() - robo_time > .04:
             
             ret, robot_frame = cap.read()
             if ret:
@@ -678,13 +686,15 @@ def stream_loop():
                     
                     with lock:
                         data_queue.put([robo_time, x_diff, y_diff, height_diff, angle_diff, num_match])
-                opti_arr.append([positions[robot_id][0], positions[robot_id][1]])
+                if is_running:
+                    opti_arr.append([positions[robot_id][0], positions[robot_id][1]])
                 mean_arr.append([x_diff, y_diff])
                 meanave = meanave * meangamma + np.sqrt(x_diff**2 + y_diff**2) * (1-meangamma)
-                if meanave < 20 and num_match > 10: # If the robot is close enough to the carrot
+                angle_accum = angle_accum * .9 + angle_diff * .1
+                if meanave < 30 and num_match > 10 and angle_accum < .1: # If the robot is close enough to the carrot
                     
                     mean_count += 1
-                    if mean_count == 10:
+                    if mean_count == 15:
                         position = wall_tracker.next_carrot() # Go to the next carrot
                         print("next carrot")
                         lost_count = 0 # Reset the lost count
@@ -729,5 +739,7 @@ print("threads!!")
 
 robo_thread.join()
 stream_thread.join()
+if is_running:
+    streaming_client.shutdown()
 print("Ended threads!")
 # print(threading.enumerate())

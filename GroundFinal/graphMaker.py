@@ -17,9 +17,9 @@ def create_line_plot(data):
     if data is not None:
         # plt.plot(-1*np.array(data[:,1]),np.array(data[:,0]), marker='x', linestyle='-')
         plt.plot(np.linalg.norm(data, axis= 1), marker='x', linestyle='-')
-        plt.xlabel('X-axis label')  # Customize the X-axis label
-        plt.ylabel('Y-axis label')  # Customize the Y-axis label
-        plt.title('Line Plot')      # Customize the plot title
+        plt.xlabel('Time (s)')  # Customize the X-axis label
+        plt.ylabel('Ellipse Mean Error')  # Customize the Y-axis label
+        plt.title('S-Blimp Imitation Error')      # Customize the plot title
         plt.grid(True)              # Enable grid lines (optional)
         plt.show()
 
